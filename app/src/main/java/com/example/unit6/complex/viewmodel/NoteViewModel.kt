@@ -5,13 +5,10 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.workDataOf
+import androidx.work.*
 import com.example.unit6.complex.model.Note
 import com.example.unit6.complex.repository.NoteRepository
-import com.example.unit6.complex.worker.NoteReminderWorker
+import com.example.unit6.complex.worker.CallAPIWorker
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
@@ -37,19 +34,41 @@ class NoteViewModel(private val repository: NoteRepository) : ViewModel() {
         _state.value = NoteState(listOf())
     }
 
-    fun submitNote(message: String) {
-        viewModelScope.launch {
-            try {
-                _event.value = NoteEvent.ShowLoading
-                val result = repository.submitNote(message)
-                _event.value = NoteEvent.ShowMessage(result)
-                _event.value = NoteEvent.HideLoading
-                getNotes()
-            } catch (ex: Exception) {
-                _event.value = NoteEvent.HideLoading
-                _event.value = NoteEvent.ShowMessage(ex.toString())
-            }
-        }
+    fun tracking(context: Context) {
+        val workRequest = PeriodicWorkRequestBuilder<CallAPIWorker>(15, TimeUnit.SECONDS)
+            .build()
+
+        WorkManager.getInstance(context)
+            .enqueue(workRequest)
+    }
+
+    fun submitNote(context: Context, message: String) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val workRequest = OneTimeWorkRequestBuilder<CallAPIWorker>()
+            .setBackoffCriteria(BackoffPolicy.LINEAR, 1, TimeUnit.SECONDS)
+            .setInputData(workDataOf("MESSAGE" to message))
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(context)
+            .enqueue(workRequest)
+
+
+//        viewModelScope.launch {
+//            try {
+//                _event.value = NoteEvent.ShowLoading
+//                val result = repository.submitNote(message)
+//                _event.value = NoteEvent.ShowMessage(result)
+//                _event.value = NoteEvent.HideLoading
+//                getNotes()
+//            } catch (ex: Exception) {
+//                _event.value = NoteEvent.HideLoading
+//                _event.value = NoteEvent.ShowMessage(ex.toString())
+//            }
+//        }
     }
 
     fun getNotes() {
@@ -66,13 +85,6 @@ class NoteViewModel(private val repository: NoteRepository) : ViewModel() {
     }
 
     fun scheduleReminder(context: Context, duration: Long, unit: TimeUnit, note: Note) {
-        val work = OneTimeWorkRequestBuilder<NoteReminderWorker>()
-            .setInitialDelay(duration, unit)
-            .setInputData(workDataOf(NoteReminderWorker.NOTE_MESSAGE to note.message))
-            .build()
-
-        WorkManager.getInstance(context)
-            .enqueueUniqueWork(note.id, ExistingWorkPolicy.KEEP, work)
     }
 
 }

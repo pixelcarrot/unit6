@@ -55,7 +55,8 @@ class NoteActivity : AppCompatActivity() {
         })
 
         binding.btnSubmit.setOnClickListener {
-            viewModel.submitNote(binding.etMessage.text.toString())
+            viewModel.tracking(this)
+            //viewModel.submitNote(this, binding.etMessage.text.toString())
         }
     }
 
